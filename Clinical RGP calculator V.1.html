@@ -1,0 +1,1392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clinical RGP calculator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        clinical: {
+                            navy: '#0F3460',
+                            lightNavy: '#1A5F7A',
+                            green: '#27AE60',
+                            orange: '#F39C12',
+                            gray: '#E8ECEF',
+                            darkGray: '#6C757D',
+                            red: '#E74C3C',
+                            primary: '#0F3460',
+                            secondary: '#1A5F7A',
+                            success: '#27AE60',
+                            warning: '#F39C12',
+                            danger: '#E74C3C',
+                            light: '#F8FAFC',
+                            accent: '#3498DB'
+                        }
+                    },
+                    fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] }
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .card-shadow { box-shadow: 0 2px 10px rgba(0,0,0,0.08); }
+            .input-valid { border-color: theme('colors.clinical.green'); }
+            .input-invalid { border-color: theme('colors.clinical.red'); }
+            .collapse-content { max-height: 0; overflow: hidden; transition: max-height 0.3s ease; }
+            .collapse-content.open { max-height: 600px; }
+            .value-highlight { font-weight: 600; }
+            .tab-active { background-color: theme('colors.clinical.navy'); color: white; }
+            .tab-inactive { background-color: theme('colors.clinical.gray'); color: theme('colors.clinical.navy'); }
+        }
+    </style>
+    <meta name="theme-color" content="#0F3460">
+</head>
+<body class="bg-white font-sans text-gray-800 min-h-screen">
+    <header class="bg-clinical-navy text-white py-4 px-6 shadow-md">
+        <div class="container mx-auto flex flex-col md:flex-row justify-between items-center">
+            <h1 class="text-2xl md:text-3xl font-bold flex items-center gap-2">
+                <i class="fas fa-eye"></i> Clinical RGP calculator
+            </h1>
+            <p class="text-sm md:text-base mt-2 md:mt-0 opacity-90">4 Significant Figures | Clinical Grade Accuracy</p>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-4 py-8">
+        <div class="mb-8 border-b border-clinical-gray">
+            <div class="flex flex-wrap gap-2">
+                <button id="tab-rgp" class="tab-active px-6 py-3 rounded-t-lg font-medium transition-colors">
+                    General RGP Modification
+                </button>
+                <button id="tab-lowtoric" class="tab-inactive px-6 py-3 rounded-t-lg font-medium transition-colors">
+                    Low Toric Stimulation bitoric RGP
+                </button>
+                <button id="tab-bitoric" class="tab-inactive px-6 py-3 rounded-t-lg font-medium transition-colors">
+                    Mandell-Moore Bitoric RGP
+                </button>
+                <button id="tab-bvd" class="tab-inactive px-6 py-3 rounded-t-lg font-medium transition-colors">
+                    BVD Conversion
+                </button>
+            </div>
+        </div>
+
+        <div class="flex flex-col lg:flex-row gap-8">
+            <div class="lg:w-2/3 space-y-6">
+                <section id="rgp-calculator" class="block">
+                    <div class="bg-white rounded-lg card-shadow p-6">
+                        <h2 class="text-xl font-bold text-clinical-navy mb-6 flex items-center gap-2">
+                            <i class="fas fa-user-md"></i> Clinical Input Parameters
+                        </h2>
+
+                        <div class="space-y-4 mb-6 border-b border-gray-200 pb-6">
+                            <h3 class="text-lg font-semibold text-clinical-lightNavy">1. Keratometry (K) Values (D)</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div class="space-y-2">
+                                    <label class="block text-sm font-medium text-gray-700">K Flat (D) @ Axis (°)</label>
+                                    <div class="flex gap-2">
+                                        <input type="number" id="k-flat-d" step="0.01" min="33" max="63" class="flex-1 px-3 py-2 border rounded" placeholder="43.50" required>
+                                        <input type="number" id="k-flat-ax" step="1" min="0" max="180" class="w-20 px-3 py-2 border rounded" placeholder="180" required>
+                                    </div>
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="block text-sm font-medium text-gray-700">K Steep (D) @ Axis (°)</label>
+                                    <div class="flex gap-2">
+                                        <input type="number" id="k-steep-d" step="0.01" min="33" max="63" class="flex-1 px-3 py-2 border rounded" placeholder="45.00" required>
+                                        <input type="number" id="k-steep-ax" step="1" min="0" max="180" class="w-20 px-3 py-2 border rounded" placeholder="90" required>
+                                    </div>
+                                    <p class="text-xs text-clinical-red hidden" id="k-value-error">
+                                        <i class="fas fa-exclamation-circle"></i> K Steep cannot be smaller than K Flat
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="space-y-4 mb-6 border-b border-gray-200 pb-6">
+                            <h3 class="text-lg font-semibold text-clinical-lightNavy">2. Spectacle Prescription</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div class="space-y-2">
+                                    <label class="block text-sm font-medium text-gray-700">Sphere (D)</label>
+                                    <input type="number" id="spect-sph-rgp" step="0.01" min="-25" max="+25" class="w-full px-3 py-2 border rounded" placeholder="-6.00" required>
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="block text-sm font-medium text-gray-700">Cylinder (D)</label>
+                                    <input type="number" id="spect-cyl-rgp" step="0.01" min="-25" max="0" class="w-full px-3 py-2 border rounded" placeholder="-1.50" required>
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="block text-sm font-medium text-gray-700">Axis (°)</label>
+                                    <input type="number" id="spect-ax-rgp" step="1" min="0" max="180" class="w-full px-3 py-2 border rounded" placeholder="90" required>
+                                </div>
+                            </div>
+                            <div class="space-y-2 mt-2">
+                                <label class="block text-sm font-medium text-gray-700">Back Vertex Distance (BVD) (mm)</label>
+                                <input type="number" id="bvd-rgp" step="0.001" min="5" max="20" value="12.000" class="w-full px-3 py-2 border rounded">
+                            </div>
+                        </div>
+
+                        <div class="space-y-4 mb-6 border-b border-gray-200 pb-6">
+                            <h3 class="text-lg font-semibold text-clinical-lightNavy">3. Trial RGP Lens Parameters</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                <div class="space-y-2">
+                                    <label class="block text-sm font-medium text-gray-700">BC Flat (mm) @ Axis (°)</label>
+                                    <div class="flex gap-2">
+                                        <input type="number" id="trial-bc-flat-mm" step="0.001" min="5.3" max="10.2" class="flex-1 px-3 py-2 border rounded" placeholder="7.850" required>
+                                        <input type="number" id="trial-bc-flat-ax" step="1" min="0" max="180" class="w-20 px-3 py-2 border rounded" placeholder="180" required>
+                                    </div>
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="block text-sm font-medium text-gray-700">Flat Meridian Power (D)</label>
+                                    <input type="number" id="trial-flat-power" step="0.01" min="-25" max="+25" class="w-full px-3 py-2 border rounded" placeholder="-6.50" required>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div class="space-y-2">
+                                    <label class="block text-sm font-medium text-gray-700">BC Steep (mm) @ Axis (°)</label>
+                                    <div class="flex gap-2">
+                                        <input type="number" id="trial-bc-steep-mm" step="0.001" min="5.3" max="10.2" class="flex-1 px-3 py-2 border rounded" placeholder="7.250" required>
+                                        <input type="number" id="trial-bc-steep-ax" step="1" min="0" max="180" class="w-20 px-3 py-2 border rounded" placeholder="90" required>
+                                    </div>
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="block text-sm font-medium text-gray-700">Steep Meridian Power (D)</label>
+                                    <input type="number" id="trial-steep-power" step="0.01" min="-25" max="+25" class="w-full px-3 py-2 border rounded" placeholder="-9.50" required>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="space-y-4 mb-6 border-b border-gray-200 pb-6">
+                            <h3 class="text-lg font-semibold text-clinical-lightNavy">4. Base Curve Adjustment (Optional)</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div class="space-y-2">
+                                    <label class="block text-sm font-medium text-gray-700">Flat Meridian BC Adjustment (mm)</label>
+                                    <input type="number" id="bcf-adjust" step="0.05" min="-2.00" max="+2.00" value="0.00" class="w-full px-3 py-2 border rounded">
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="block text-sm font-medium text-gray-700">Steep Meridian BC Adjustment (mm)</label>
+                                    <input type="number" id="bcs-adjust" step="0.05" min="-2.00" max="+2.00" value="0.00" class="w-full px-3 py-2 border rounded">
+                                </div>
+                            </div>
+                            <p class="text-xs text-clinical-darkGray mt-2">-0.05mm (steeper)=+0.25D tear lens → RGP power -0.25D; +0.05mm (flatter)=-0.25D tear lens → RGP power +0.25D</p>
+                        </div>
+
+                        <div class="space-y-4">
+                            <button id="or-toggle" class="flex items-center gap-2 text-clinical-lightNavy font-medium text-sm hover:text-clinical-navy w-full justify-start">
+                                <i class="fas fa-chevron-down transition-transform duration-300" id="or-chevron"></i>
+                                5. Over-Refraction (OR) Adjustment (0.25D Step)
+                            </button>
+                            <div class="collapse-content mt-4" id="or-content">
+                                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div class="space-y-2">
+                                        <label class="block text-sm font-medium text-gray-700">OR Sphere (D)</label>
+                                        <input type="number" id="or-sph" step="0.25" min="-25" max="+25" value="0.00" class="w-full px-3 py-2 border rounded">
+                                    </div>
+                                    <div class="space-y-2">
+                                        <label class="block text-sm font-medium text-gray-700">OR Cylinder (D)</label>
+                                        <input type="number" id="or-cyl" step="0.25" min="-25" max="0" value="0.00" class="w-full px-3 py-2 border rounded">
+                                    </div>
+                                    <div class="space-y-2">
+                                        <label class="block text-sm font-medium text-gray-700">OR Axis (°)</label>
+                                        <input type="number" id="or-ax" step="1" min="0" max="180" value="0" class="w-full px-3 py-2 border rounded">
+                                    </div>
+                                </div>
+                                <p class="text-xs text-clinical-darkGray mt-2">Includes BVD conversion (5-20mm)</p>
+                            </div>
+                        </div>
+
+                        <div class="flex flex-col sm:flex-row gap-3 mt-8">
+                            <button id="calculate-btn-rgp" class="flex-1 bg-clinical-green text-white px-6 py-3 rounded-lg font-medium hover:bg-green-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                                <i class="fas fa-calculator"></i> Calculate RGP Parameters
+                            </button>
+                            <button id="reset-btn-rgp" class="px-6 py-3 border border-clinical-darkGray rounded-lg font-medium hover:bg-clinical-gray transition-colors flex items-center justify-center gap-2">
+                                <i class="fas fa-redo"></i> Reset All
+                            </button>
+                        </div>
+                    </div>
+
+                    <section id="output-panel-rgp" class="bg-white rounded-lg card-shadow p-6 hidden">
+                        <h2 class="text-xl font-bold text-clinical-navy mb-6 flex items-center gap-2">
+                            <i class="fas fa-chart-line"></i> Clinical Calculation Results (4 Significant Figures)
+                        </h2>
+                        <div class="space-y-4" id="output-content-rgp"></div>
+                    </section>
+                </section>
+
+                <section id="bvd-calculator" class="hidden">
+                    <div class="bg-white rounded-lg card-shadow p-6">
+                        <h2 class="text-xl font-bold text-clinical-navy mb-6 flex items-center gap-2">
+                            <i class="fas fa-ruler-horizontal"></i> BVD Conversion Calculator
+                        </h2>
+                        <div class="space-y-4 mb-6 border-b border-gray-200 pb-6">
+                            <h3 class="text-lg font-semibold text-clinical-lightNavy">Spectacle Prescription</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div class="space-y-2">
+                                    <label class="block text-sm font-medium text-gray-700">Sphere (D)</label>
+                                    <input type="number" id="spect-sph-bvd" step="0.01" min="-30" max="+30" class="w-full px-3 py-2 border rounded" placeholder="-5.50">
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="block text-sm font-medium text-gray-700">Cylinder (D)</label>
+                                    <input type="number" id="spect-cyl-bvd" step="0.01" min="-30" max="0" class="w-full px-3 py-2 border rounded" placeholder="-2.00">
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="block text-sm font-medium text-gray-700">Axis (°)</label>
+                                    <input type="number" id="spect-ax-bvd" step="1" min="0" max="180" class="w-full px-3 py-2 border rounded" placeholder="180">
+                                </div>
+                            </div>
+                            <div class="space-y-2 mt-2">
+                                <label class="block text-sm font-medium text-gray-700">Back Vertex Distance (mm)</label>
+                                <input type="number" id="bvd-bvd" step="0.001" min="5" max="20" value="12.000" class="w-full px-3 py-2 border rounded">
+                            </div>
+                        </div>
+
+                        <div class="flex flex-col sm:flex-row gap-3 mt-8">
+                            <button id="calculate-btn-bvd" class="flex-1 bg-clinical-green text-white px-6 py-3 rounded-lg font-medium hover:bg-green-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                                <i class="fas fa-calculator"></i> Convert to Corneal Plane
+                            </button>
+                            <button id="reset-btn-bvd" class="px-6 py-3 border border-clinical-darkGray rounded-lg font-medium hover:bg-clinical-gray transition-colors flex items-center justify-center gap-2">
+                                <i class="fas fa-redo"></i> Reset
+                            </button>
+                        </div>
+                    </div>
+
+                    <section id="output-panel-bvd" class="bg-white rounded-lg card-shadow p-6 hidden">
+                        <h2 class="text-xl font-bold text-clinical-navy mb-6 flex items-center gap-2">
+                            <i class="fas fa-chart-line"></i> Corneal Plane Conversion (4 Sig Figs)
+                        </h2>
+                        <div class="space-y-4" id="output-content-bvd"></div>
+                    </section>
+                </section>
+
+                <section id="bitoric-calculator" class="hidden">
+                    <div class="bg-white rounded-lg card-shadow p-6">
+                        <h2 class="text-xl font-bold text-clinical-navy mb-6 flex items-center gap-2">
+                            <i class="fas fa-input-text"></i> Bitoric Clinical Inputs
+                        </h2>
+
+                        <div class="space-y-4 mb-6">
+                            <h3 class="text-lg font-semibold text-clinical-lightNavy">Required (Bitoric Calculation)</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div class="space-y-2">
+                                    <label class="block text-sm font-medium" for="b-kf-d">K Flat (D) @ Axis (°)</label>
+                                    <div class="flex gap-2">
+                                        <input type="number" id="b-kf-d" step="0.001" min="33" max="63" class="flex-1 px-3 py-2 border rounded" placeholder="42.500">
+                                        <input type="number" id="b-kf-ax" step="1" min="0" max="180" class="w-20 px-3 py-2 border rounded" placeholder="180">
+                                    </div>
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="block text-sm font-medium" for="b-ks-d">K Steep (D) @ Axis (°)</label>
+                                    <div class="flex gap-2">
+                                        <input type="number" id="b-ks-d" step="0.001" min="33" max="63" class="flex-1 px-3 py-2 border rounded" placeholder="45.500">
+                                        <input type="number" id="b-ks-ax" step="1" min="0" max="180" class="w-20 px-3 py-2 border rounded" placeholder="90">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div class="space-y-2">
+                                    <label class="block text-sm font-medium" for="b-s-sph">Spectacle Sphere (D)</label>
+                                    <input type="number" id="b-s-sph" step="0.001" min="-25" max="+25" class="w-full px-3 py-2 border rounded" placeholder="-6.000">
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="block text-sm font-medium" for="b-s-cyl">Spectacle Cylinder (D)</label>
+                                    <input type="number" id="b-s-cyl" step="0.001" min="-25" max="0" class="w-full px-3 py-2 border rounded" placeholder="-3.000">
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="block text-sm font-medium" for="b-s-ax">Axis (°)</label>
+                                    <input type="number" id="b-s-ax" step="1" min="0" max="180" class="w-full px-3 py-2 border rounded" placeholder="180">
+                                </div>
+                            </div>
+
+                            <div class="space-y-2">
+                                <label class="block text-sm font-medium" for="b-bvd">Back Vertex Distance (BVD) (mm)</label>
+                                <input type="number" id="b-bvd" step="0.001" min="5" max="20" value="12.000" class="w-full px-3 py-2 border rounded">
+                            </div>
+                        </div>
+
+                        <div class="border-t pt-4 mb-4">
+                            <h3 class="text-lg font-semibold text-clinical-lightNavy mb-3">Base Curve Adjustment (0.05mm Step)</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div class="space-y-2">
+                                    <label class="block text-sm font-medium" for="b-bcf-adjust">Flat Meridian BC Adjustment (mm)</label>
+                                    <input type="number" id="b-bcf-adjust" step="0.05" min="-2.00" max="+2.00" value="0.00" class="w-full px-3 py-2 border rounded">
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="block text-sm font-medium" for="b-bcs-adjust">Steep Meridian BC Adjustment (mm)</label>
+                                    <input type="number" id="b-bcs-adjust" step="0.05" min="-2.00" max="+2.00" value="0.00" class="w-full px-3 py-2 border rounded">
+                                </div>
+                            </div>
+                            <p class="text-xs text-clinical-darkGray mt-2">-0.05mm (steeper)=+0.25D tear lens → RGP power -0.25D; +0.05mm (flatter)=-0.25D tear lens → RGP power +0.25D</p>
+                        </div>
+
+                        <div class="border-t pt-4">
+                            <button id="b-or-toggle" class="flex items-center gap-2 text-clinical-lightNavy font-medium text-sm hover:text-clinical-navy">
+                                <i class="fas fa-chevron-down transition-transform duration-300" id="b-or-chevron"></i> Over-Refraction (OR) Adjustment (0.25D Step)
+                            </button>
+                            <div class="collapse-content mt-4" id="b-or-content">
+                                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div class="space-y-2">
+                                        <label class="block text-sm font-medium" for="b-or-sph">OR Sphere (D)</label>
+                                        <input type="number" id="b-or-sph" step="0.25" min="-25" max="+25" value="0.00" class="w-full px-3 py-2 border rounded">
+                                    </div>
+                                    <div class="space-y-2">
+                                        <label class="block text-sm font-medium" for="b-or-cyl">OR Cylinder (D)</label>
+                                        <input type="number" id="b-or-cyl" step="0.25" min="-25" max="0" value="0.00" class="w-full px-3 py-2 border rounded">
+                                    </div>
+                                    <div class="space-y-2">
+                                        <label class="block text-sm font-medium" for="b-or-ax">OR Axis (°)</label>
+                                        <input type="number" id="b-or-ax" step="1" min="0" max="180" value="0" class="w-full px-3 py-2 border rounded">
+                                    </div>
+                                </div>
+                                <p class="text-xs text-clinical-darkGray mt-2">Includes BVD conversion (5-20mm)</p>
+                            </div>
+                        </div>
+
+                        <div class="flex gap-3 mt-6">
+                            <button id="b-calculate-btn" class="flex-1 bg-clinical-green text-white px-6 py-2 rounded font-medium hover:bg-green-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                                <i class="fas fa-calculator"></i> Calculate (4 Sig Figs)
+                            </button>
+                            <button id="b-reset-btn" class="px-6 py-2 border border-clinical-darkGray rounded font-medium hover:bg-clinical-gray transition-colors flex items-center justify-center gap-2">
+                                <i class="fas fa-redo"></i> Reset
+                            </button>
+                        </div>
+                    </div>
+
+                    <section id="b-output-panel" class="bg-white rounded-lg card-shadow p-6 hidden">
+                        <h2 class="text-xl font-bold text-clinical-navy mb-6 flex items-center gap-2">
+                            <i class="fas fa-chart-line"></i> Bitoric Calculation Results (4 Sig Figs)
+                        </h2>
+                        <div class="space-y-4" id="b-output-content"></div>
+                    </section>
+                </section>
+
+                <section id="lowtoric-calculator" class="hidden">
+                    <div class="bg-white rounded-lg card-shadow p-6">
+                        <h2 class="text-xl font-bold text-clinical-navy mb-6 flex items-center gap-2">
+                            <i class="fas fa-input-text"></i> Low Toric Stimulation bitoric RGP Clinical Inputs
+                        </h2>
+
+                        <div class="space-y-4 mb-6">
+                            <h3 class="text-lg font-semibold text-clinical-lightNavy">Required Calculation Inputs</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div class="space-y-2">
+                                    <label class="block text-sm font-medium" for="l-kf-d">K Flat (D) @ Axis (°)</label>
+                                    <div class="flex gap-2">
+                                        <input type="number" id="l-kf-d" step="0.001" min="33" max="63" class="flex-1 px-3 py-2 border rounded" placeholder="33.000">
+                                        <input type="number" id="l-kf-ax" step="1" min="0" max="180" class="w-20 px-3 py-2 border rounded" placeholder="180">
+                                    </div>
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="block text-sm font-medium" for="l-ks-d">K Steep (D) @ Axis (°)</label>
+                                    <div class="flex gap-2">
+                                        <input type="number" id="l-ks-d" step="0.001" min="33" max="63" class="flex-1 px-3 py-2 border rounded" placeholder="63.000">
+                                        <input type="number" id="l-ks-ax" step="1" min="0" max="180" class="w-20 px-3 py-2 border rounded" placeholder="90">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div class="space-y-2">
+                                    <label class="block text-sm font-medium" for="l-s-sph">Spectacle Sphere (D)</label>
+                                    <input type="number" id="l-s-sph" step="0.001" min="-25" max="+25" class="w-full px-3 py-2 border rounded" placeholder="-3.000">
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="block text-sm font-medium" for="l-s-cyl">Spectacle Cylinder (D)</label>
+                                    <input type="number" id="l-s-cyl" step="0.001" min="-25" max="0" class="w-full px-3 py-2 border rounded" placeholder="-2.500">
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="block text-sm font-medium" for="l-s-ax">Axis (°)</label>
+                                    <input type="number" id="l-s-ax" step="1" min="0" max="180" class="w-full px-3 py-2 border rounded" placeholder="180">
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div class="space-y-2">
+                                    <label class="block text-sm font-medium" for="l-bvd">Back Vertex Distance (mm)</label>
+                                    <input type="number" id="l-bvd" step="0.001" min="5" max="20" value="12.000" class="w-full px-3 py-2 border rounded">
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="block text-sm font-medium" for="l-toricity-factor">Toricity Factor (%)</label>
+                                    <input type="number" id="l-toricity-factor" step="1" min="65" max="90" value="75" class="w-full px-3 py-2 border rounded" placeholder="75">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="border-t pt-4 mb-4">
+                            <h3 class="text-lg font-semibold text-clinical-lightNavy mb-3">Base Curve Adjustment (0.05mm Step)</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div class="space-y-2">
+                                    <label class="block text-sm font-medium" for="l-bcf-adjust">Flat Meridian (mm)</label>
+                                    <input type="number" id="l-bcf-adjust" step="0.05" min="-2.00" max="+2.00" value="0.00" class="w-full px-3 py-2 border rounded">
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="block text-sm font-medium" for="l-bcs-adjust">Steep Meridian (mm)</label>
+                                    <input type="number" id="l-bcs-adjust" step="0.05" min="-2.00" max="+2.00" value="0.00" class="w-full px-3 py-2 border rounded">
+                                </div>
+                            </div>
+                            <p class="text-xs text-clinical-darkGray mt-2">-0.05mm (steeper)=+0.25D tear lens → RGP power -0.25D; +0.05mm (flatter)=-0.25D tear lens → RGP power +0.25D</p>
+                        </div>
+
+                        <div class="border-t pt-4">
+                            <button id="l-or-toggle" class="flex items-center gap-2 text-clinical-lightNavy font-medium text-sm hover:text-clinical-navy">
+                                <i class="fas fa-chevron-down transition-transform duration-300" id="l-or-chevron"></i> Over-Refraction Adjustment (0.25D Step)
+                            </button>
+                            <div class="collapse-content mt-4" id="l-or-content">
+                                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div class="space-y-2">
+                                        <label class="block text-sm font-medium" for="l-or-sph">OR Sphere (D)</label>
+                                        <input type="number" id="l-or-sph" step="0.25" min="-25" max="+25" value="0.00" class="w-full px-3 py-2 border rounded">
+                                    </div>
+                                    <div class="space-y-2">
+                                        <label class="block text-sm font-medium" for="l-or-cyl">OR Cylinder (D)</label>
+                                        <input type="number" id="l-or-cyl" step="0.25" min="-25" max="0" value="0.00" class="w-full px-3 py-2 border rounded">
+                                    </div>
+                                    <div class="space-y-2">
+                                        <label class="block text-sm font-medium" for="l-or-ax">OR Axis (°)</label>
+                                        <input type="number" id="l-or-ax" step="1" min="0" max="180" value="0" class="w-full px-3 py-2 border rounded">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex gap-3 mt-6">
+                            <button id="l-calculate-btn" class="flex-1 bg-clinical-green text-white px-6 py-2 rounded font-medium hover:bg-green-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                                <i class="fas fa-calculator"></i> Calculate RGP
+                            </button>
+                            <button id="l-reset-btn" class="px-6 py-2 border border-clinical-darkGray rounded font-medium hover:bg-clinical-gray transition-colors flex items-center justify-center gap-2">
+                                <i class="fas fa-redo"></i> Reset
+                            </button>
+                        </div>
+                    </div>
+
+                    <section id="l-output-panel" class="bg-white rounded-lg card-shadow p-6 hidden">
+                        <h2 class="text-xl font-bold text-clinical-navy mb-6 flex items-center gap-2">
+                            <i class="fas fa-chart-line"></i> Low Toric Stimulation bitoric RGP Calculation Results (4 Sig Figs)
+                        </h2>
+                        <div class="space-y-4" id="l-output-content"></div>
+                    </section>
+                </section>
+            </div>
+
+            <aside class="lg:w-1/3 lg:sticky lg:top-4">
+                <div class="bg-clinical-gray rounded-lg card-shadow p-6">
+                    <h2 class="text-xl font-bold text-clinical-navy mb-4 flex items-center gap-2">
+                        <i class="fas fa-book-medical"></i> Clinical Reference
+                    </h2>
+                    
+                    <div id="ref-general" class="space-y-4 text-sm">
+                        <div class="space-y-2">
+                            <h3 class="font-semibold text-clinical-lightNavy">Key Formulas</h3>
+                            <p class="bg-white p-2 rounded"><strong>BC ↔ Diopter</strong>: D = 337.5 / BC (mm)</p>
+                            <p class="bg-white p-2 rounded"><strong>Tear Lens</strong>: Tear D = Adjusted BC (D) - K (D)</p>
+                            <p class="bg-white p-2 rounded"><strong>Back Vertex</strong>: Ocular Rx = Spect Rx / (1 - d × Spect Rx) (d=BVD in meters)</p>
+                            <p class="bg-white p-2 rounded"><strong>BC Adjustment</strong>: 0.05mm = 0.25D tear lens change</p>
+                        </div>
+                        <div class="bg-clinical-orange/10 p-3 rounded border-l-4 border-clinical-orange">
+                            <p class="font-medium text-clinical-orange">Precision Tip</p>
+                            <p class="text-xs">4 sig figs for clinical accuracy. Critical for high-power prescriptions.</p>
+                        </div>
+                    </div>
+
+                    <div id="ref-bitoric" class="space-y-4 text-sm hidden">
+                        <div class="space-y-2">
+                            <h3 class="font-semibold text-clinical-lightNavy">Key Formulas</h3>
+                            <p class="bg-white p-2 rounded"><strong>Back Vertex</strong>: Ocular Rx = Spect Rx / (1-d × Spect Rx)</p>
+                            <p class="bg-white p-2 rounded"><strong>Units</strong>: d = BVD (m), 5-20mm range</p>
+                            <p class="bg-white p-2 rounded"><strong>D (Diopter)</strong> = 337.5 / Corneal Curvature (mm)</p>
+                            <p class="bg-white p-2 rounded"><strong>Tear Lens</strong> = Lens BC - Corneal K</p>
+                        </div>
+                        <div class="space-y-2">
+                            <h3 class="font-semibold text-clinical-lightNavy">Fit Factors (ΔK)</h3>
+                            <div class="bg-white p-2 rounded overflow-x-auto">
+                                <table class="w-full text-xs">
+                                    <thead>
+                                        <tr class="border-b border-gray-200">
+                                            <th class="text-left pb-1">ΔK (D)</th>
+                                            <th class="text-left pb-1">Flat</th>
+                                            <th class="text-left pb-1">Steep</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td class="font-medium">2.0</td>
+                                            <td>On K</td>
+                                            <td>0.50D Flatter</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="font-medium">2.5</td>
+                                            <td>0.25D Flatter</td>
+                                            <td>0.50D Flatter</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="font-medium">3.0+</td>
+                                            <td>0.25D Flatter</td>
+                                            <td>0.75D Flatter</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="bg-clinical-orange/10 p-3 rounded border-l-4 border-clinical-orange">
+                            <p class="font-medium text-clinical-orange">Precision Tip</p>
+                            <p class="text-xs">OAD: 8.800-9.200mm | All calculations use 4 sig figs (3 decimals)</p>
+                        </div>
+                    </div>
+
+                    <div id="ref-lowtoric" class="space-y-4 text-sm hidden">
+                        <div class="space-y-2">
+                            <h3 class="font-semibold text-clinical-lightNavy">Key Formulas</h3>
+                            <p class="bg-white p-2 rounded"><strong>Back Vertex</strong>: Ocular Rx = Spect Rx / (1-d×Spect Rx) (d=BVD in meters)</p>
+                            <p class="bg-white p-2 rounded"><strong>D ↔ mm</strong>: D=337.5/mm | mm=337.5/D</p>
+                            <p class="bg-white p-2 rounded"><strong>Steep BC</strong>: K Flat + (Toricity % × ΔK)</p>
+                            <p class="bg-white p-2 rounded"><strong>RGP Power</strong>: Corneal Rx - Tear Lens + BC Adjust + OR (Corneal)</p>
+                        </div>
+                        <div class="bg-clinical-orange/10 p-3 rounded border-l-4 border-clinical-orange">
+                            <p class="font-medium text-clinical-orange">Precision Tip</p>
+                            <p class="text-xs">OAD: 8.800-9.200mm | All calculations use 4 sig figs (3 decimals)</p>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+        </div>
+    </main>
+
+    <footer class="bg-clinical-navy text-white py-4 px-6 mt-8">
+        <div class="container mx-auto text-center text-sm opacity-90">
+            <p>Clinical RGP calculator | General RGP • BVD • Mandell Bitoric • Low Toric</p>
+        </div>
+    </footer>
+
+    <script>
+        const fmt4Sig = (num) => {
+            const n = typeof num === 'number' ? num : parseFloat(num);
+            if (!isFinite(n) || Math.abs(n) < 0.00001) return '0.000';
+            let str = parseFloat(n.toPrecision(4)).toFixed(3);
+            while (str.split('.')[1]?.length < 3) str += '0';
+            return str;
+        };
+        const format4SigFigs = (num) => {
+            const n = typeof num === 'number' ? num : parseFloat(num);
+            if (!isFinite(n)) return 0.0000;
+            return parseFloat(n.toPrecision(4));
+        };
+        const kDToMm = (kD) => parseFloat((337.5 / kD).toFixed(3));
+        const mmToKD = (mm) => parseFloat((337.5 / mm).toFixed(3));
+        const mmToD = (mm) => format4SigFigs(337.5 / mm);
+        const normalizeAxis = (axis) => { axis = axis % 180; return axis < 0 ? axis + 180 : axis; };
+        const calcAxisDiff = (ax1, ax2) => {
+            const a1 = normalizeAxis(ax1), a2 = normalizeAxis(ax2);
+            const diff = Math.abs(a1 - a2);
+            return Math.min(diff, 180 - diff);
+        };
+        const backVertexConversion = (spectRx, bvdM) => {
+            if (1 - bvdM * spectRx === 0) return parseFloat(spectRx.toFixed(6));
+            return parseFloat((spectRx / (1 - bvdM * spectRx)).toFixed(6));
+        };
+        const addOutputCard = (container, title, content, extraClass = '') => {
+            const card = document.createElement('div');
+            card.className = `bg-clinical-gray/10 p-4 rounded-lg ${extraClass}`;
+            card.innerHTML = `<h3 class="font-semibold text-clinical-navy mb-2">${title}</h3><div class="text-sm">${content}</div>`;
+            container.appendChild(card);
+        };
+
+        const tabRgp = document.getElementById('tab-rgp');
+        const tabBvd = document.getElementById('tab-bvd');
+        const tabBitoric = document.getElementById('tab-bitoric');
+        const tabLowToric = document.getElementById('tab-lowtoric');
+        const rgpCalculator = document.getElementById('rgp-calculator');
+        const bvdCalculator = document.getElementById('bvd-calculator');
+        const bitoricCalculator = document.getElementById('bitoric-calculator');
+        const lowtoricCalculator = document.getElementById('lowtoric-calculator');
+        const refGeneral = document.getElementById('ref-general');
+        const refBitoric = document.getElementById('ref-bitoric');
+        const refLowToric = document.getElementById('ref-lowtoric');
+
+        tabRgp.addEventListener('click', () => {
+            tabRgp.classList.add('tab-active'); tabRgp.classList.remove('tab-inactive');
+            tabBvd.classList.add('tab-inactive'); tabBvd.classList.remove('tab-active');
+            tabBitoric.classList.add('tab-inactive'); tabBitoric.classList.remove('tab-active');
+            tabLowToric.classList.add('tab-inactive'); tabLowToric.classList.remove('tab-active');
+            rgpCalculator.classList.remove('hidden'); rgpCalculator.classList.add('block');
+            bvdCalculator.classList.add('hidden'); bitoricCalculator.classList.add('hidden'); lowtoricCalculator.classList.add('hidden');
+            refGeneral.classList.remove('hidden'); refBitoric.classList.add('hidden'); refLowToric.classList.add('hidden');
+        });
+        tabBvd.addEventListener('click', () => {
+            tabBvd.classList.add('tab-active'); tabBvd.classList.remove('tab-inactive');
+            tabRgp.classList.add('tab-inactive'); tabRgp.classList.remove('tab-active');
+            tabBitoric.classList.add('tab-inactive'); tabBitoric.classList.remove('tab-active');
+            tabLowToric.classList.add('tab-inactive'); tabLowToric.classList.remove('tab-active');
+            bvdCalculator.classList.remove('hidden'); bvdCalculator.classList.add('block');
+            rgpCalculator.classList.add('hidden'); bitoricCalculator.classList.add('hidden'); lowtoricCalculator.classList.add('hidden');
+            refGeneral.classList.remove('hidden'); refBitoric.classList.add('hidden'); refLowToric.classList.add('hidden');
+        });
+        tabBitoric.addEventListener('click', () => {
+            tabBitoric.classList.add('tab-active'); tabBitoric.classList.remove('tab-inactive');
+            tabRgp.classList.add('tab-inactive'); tabRgp.classList.remove('tab-active');
+            tabBvd.classList.add('tab-inactive'); tabBvd.classList.remove('tab-active');
+            tabLowToric.classList.add('tab-inactive'); tabLowToric.classList.remove('tab-active');
+            bitoricCalculator.classList.remove('hidden'); bitoricCalculator.classList.add('block');
+            rgpCalculator.classList.add('hidden'); bvdCalculator.classList.add('hidden'); lowtoricCalculator.classList.add('hidden');
+            refGeneral.classList.add('hidden'); refBitoric.classList.remove('hidden'); refLowToric.classList.add('hidden');
+        });
+        tabLowToric.addEventListener('click', () => {
+            tabLowToric.classList.add('tab-active'); tabLowToric.classList.remove('tab-inactive');
+            tabRgp.classList.add('tab-inactive'); tabRgp.classList.remove('tab-active');
+            tabBvd.classList.add('tab-inactive'); tabBvd.classList.remove('tab-active');
+            tabBitoric.classList.add('tab-inactive'); tabBitoric.classList.remove('tab-active');
+            lowtoricCalculator.classList.remove('hidden'); lowtoricCalculator.classList.add('block');
+            rgpCalculator.classList.add('hidden'); bvdCalculator.classList.add('hidden'); bitoricCalculator.classList.add('hidden');
+            refGeneral.classList.add('hidden'); refBitoric.classList.add('hidden'); refLowToric.classList.remove('hidden');
+            // Ensure button state is recalculated when switching to Low Toric tab
+            if (typeof validateLowToricInputs === 'function') validateLowToricInputs();
+        });
+
+        const bCalcBtn = document.getElementById('b-calculate-btn');
+        const bResetBtn = document.getElementById('b-reset-btn');
+        const bOrToggle = document.getElementById('b-or-toggle');
+        const bOrContent = document.getElementById('b-or-content');
+        const bOrChevron = document.getElementById('b-or-chevron');
+        const bOutputPanel = document.getElementById('b-output-panel');
+        const bOutputContent = document.getElementById('b-output-content');
+        const bInputs = {
+            kfD: document.getElementById('b-kf-d'), kfAx: document.getElementById('b-kf-ax'),
+            ksD: document.getElementById('b-ks-d'), ksAx: document.getElementById('b-ks-ax'),
+            sSph: document.getElementById('b-s-sph'), sCyl: document.getElementById('b-s-cyl'), sAx: document.getElementById('b-s-ax'),
+            bvd: document.getElementById('b-bvd'), orSph: document.getElementById('b-or-sph'), orCyl: document.getElementById('b-or-cyl'),
+            orAx: document.getElementById('b-or-ax'), bcfAdjust: document.getElementById('b-bcf-adjust'), bcsAdjust: document.getElementById('b-bcs-adjust')
+        };
+        bCalcBtn.disabled = true;
+        bOrToggle.addEventListener('click', () => {
+            bOrContent.classList.toggle('open');
+            bOrChevron.classList.toggle('rotate-180');
+        });
+        Object.values(bInputs).forEach(input => input.addEventListener('input', () => validateBitoricInputs()));
+        bResetBtn.addEventListener('click', resetBitoric);
+        bCalcBtn.addEventListener('click', calculateBitoric);
+        function validateBitoricInputs() {
+            let allValid = true;
+            const required = [bInputs.kfD, bInputs.kfAx, bInputs.ksD, bInputs.ksAx, bInputs.sSph, bInputs.sCyl, bInputs.sAx, bInputs.bvd];
+            required.forEach(input => {
+                input.classList.remove('input-valid', 'input-invalid');
+                if (!input.value || isNaN(input.value) || input.value.trim() === '') {
+                    input.classList.add('input-invalid'); allValid = false; return;
+                }
+                const val = parseFloat(input.value);
+                let rangeValid = true;
+                switch(input.id) {
+                    case 'b-kf-d': case 'b-ks-d': rangeValid = val >= 33 && val <= 63; break;
+                    case 'b-kf-ax': case 'b-ks-ax': case 'b-s-ax': case 'b-or-ax': rangeValid = val >= 0 && val <= 180; break;
+                    case 'b-s-sph': case 'b-or-sph': rangeValid = val >= -25 && val <= 25; break;
+                    case 'b-s-cyl': case 'b-or-cyl': rangeValid = val >= -25 && val <= 0; break;
+                    case 'b-bvd': rangeValid = val >= 5 && val <= 20; break;
+                }
+                if (!rangeValid) { input.classList.add('input-invalid'); allValid = false; } else input.classList.add('input-valid');
+            });
+            if (bInputs.kfD.value && bInputs.ksD.value) {
+                const kf = parseFloat(bInputs.kfD.value); const ks = parseFloat(bInputs.ksD.value);
+                if (ks <= kf) { bInputs.ksD.classList.add('input-invalid'); allValid = false; }
+            }
+            [bInputs.bcfAdjust, bInputs.bcsAdjust].forEach(input => {
+                input.classList.remove('input-valid', 'input-invalid');
+                const val = parseFloat(input.value || 0);
+                const stepValid = Math.round(val * 100) % 5 === 0;
+                const rangeValid = val >= -2.00 && val <= 2.00;
+                if (!rangeValid || !stepValid) { input.classList.add('input-invalid'); allValid = false; }
+                else { input.value = val.toFixed(2); input.classList.add('input-valid'); }
+            });
+            [bInputs.orSph, bInputs.orCyl].forEach(input => {
+                input.classList.remove('input-valid', 'input-invalid');
+                const val = parseFloat(input.value || 0);
+                const stepValid = (val % 0.25).toFixed(2) === '0.00';
+                const rangeValid = input.id === 'b-or-cyl' ? (val >= -25 && val <= 0) : (val >= -25 && val <= 25);
+                if (!rangeValid || !stepValid) { input.classList.add('input-invalid'); allValid = false; }
+                else { input.value = val.toFixed(2); input.classList.add('input-valid'); }
+            });
+            bCalcBtn.disabled = !allValid;
+        }
+        function resetBitoric() {
+            Object.values(bInputs).forEach(input => {
+                input.value = ''; input.classList.remove('input-valid', 'input-invalid');
+                if (input.id === 'b-bvd') input.value = 12.000;
+                if (input.id.includes('b-or-') || input.id.includes('adjust')) input.value = 0.00;
+            });
+            bOutputPanel.classList.add('hidden'); bOutputContent.innerHTML = ''; bCalcBtn.disabled = true;
+            bOrContent.classList.remove('open'); bOrChevron.classList.remove('rotate-180');
+        }
+        const getFitFactors = (deltaK) => {
+            let flatAdj = 0, steepAdj = 0;
+            if (deltaK >= 2.0 && deltaK < 2.5) { steepAdj = 0.500; }
+            else if (deltaK >= 2.5 && deltaK < 3.0) { flatAdj = 0.250; steepAdj = 0.500; }
+            else if (deltaK >= 3.0) { flatAdj = 0.250; steepAdj = 0.750; }
+            return { flatAdj, steepAdj };
+        };
+        function calculateBitoric() {
+            bOutputContent.innerHTML = '';
+            try {
+                const v = {
+                    kfD: parseFloat(bInputs.kfD.value), kfAx: parseInt(bInputs.kfAx.value),
+                    ksD: parseFloat(bInputs.ksD.value), ksAx: parseInt(bInputs.ksAx.value),
+                    sSph: parseFloat(bInputs.sSph.value), sCyl: parseFloat(bInputs.sCyl.value), sAx: parseInt(bInputs.sAx.value),
+                    bvd: parseFloat(bInputs.bvd.value), orSph: parseFloat(bInputs.orSph.value) || 0,
+                    orCyl: parseFloat(bInputs.orCyl.value) || 0, orAx: parseInt(bInputs.orAx.value) || 0,
+                    bcfAdjust: parseFloat(bInputs.bcfAdjust.value) || 0, bcsAdjust: parseFloat(bInputs.bcsAdjust.value) || 0
+                };
+                const bvdM = v.bvd / 1000;
+                const flatPower = v.sSph;
+                const steepPower = parseFloat((v.sSph + v.sCyl).toFixed(6));
+                const cornealFlat = backVertexConversion(flatPower, bvdM);
+                const cornealSteep = backVertexConversion(steepPower, bvdM);
+                const cornealCyl = fmt4Sig(cornealSteep - cornealFlat);
+                const deltaK = fmt4Sig(v.ksD - v.kfD);
+                const { flatAdj, steepAdj } = getFitFactors(parseFloat(deltaK));
+                let bcfD = fmt4Sig(v.kfD - flatAdj);
+                let bcsD = fmt4Sig(v.ksD - steepAdj);
+                let bcfMm = kDToMm(parseFloat(bcfD));
+                let bcsMm = kDToMm(parseFloat(bcsD));
+                const bcfAdjMm = parseFloat((bcfMm + v.bcfAdjust).toFixed(3));
+                const bcsAdjMm = parseFloat((bcsMm + v.bcsAdjust).toFixed(3));
+                const bcfAdjD = mmToKD(bcfAdjMm);
+                const bcsAdjD = mmToKD(bcsAdjMm);
+                const bcfPowerAdj = fmt4Sig((v.bcfAdjust / 0.05) * 0.25);
+                const bcsPowerAdj = fmt4Sig((v.bcsAdjust / 0.05) * 0.25);
+                const tearFlat = fmt4Sig(parseFloat(bcfAdjD) - v.kfD);
+                const tearSteep = fmt4Sig(parseFloat(bcsAdjD) - v.ksD);
+                let ffPreOR = fmt4Sig(parseFloat(cornealFlat) + flatAdj + parseFloat(bcfPowerAdj));
+                let fsPreOR = fmt4Sig(parseFloat(cornealSteep) + steepAdj + parseFloat(bcsPowerAdj));
+                let ffFinal = ffPreOR, fsFinal = fsPreOR;
+                const orApplied = v.orSph !== 0 || v.orCyl !== 0;
+                let orFlatConvDisp = null, orSteepConvDisp = null;
+                if (orApplied) {
+                    const flatAxisDiff = calcAxisDiff(v.orAx, v.kfAx);
+                    const steepAxisDiff = calcAxisDiff(v.orAx, v.ksAx);
+                    const isNearFlat = flatAxisDiff <= 20;
+                    const isNearSteep = steepAxisDiff <= 20;
+                    let orFlatSpec = 0, orSteepSpec = 0;
+                    if (isNearFlat) { orFlatSpec = parseFloat(fmt4Sig(v.orSph)); orSteepSpec = parseFloat(fmt4Sig(v.orSph + v.orCyl)); }
+                    else if (isNearSteep) { orSteepSpec = parseFloat(fmt4Sig(v.orSph)); orFlatSpec = parseFloat(fmt4Sig(v.orSph + v.orCyl)); }
+                    else { orFlatSpec = parseFloat(fmt4Sig(v.orSph)); orSteepSpec = parseFloat(fmt4Sig(v.orSph + v.orCyl)); }
+                    const orFlatConv = backVertexConversion(parseFloat(orFlatSpec), bvdM);
+                    const orSteepConv = backVertexConversion(parseFloat(orSteepSpec), bvdM);
+                    orFlatConvDisp = orFlatConv;
+                    orSteepConvDisp = orSteepConv;
+                    ffFinal = fmt4Sig(parseFloat(ffPreOR) + orFlatConv);
+                    fsFinal = fmt4Sig(parseFloat(fsPreOR) + orSteepConv);
+                }
+                addOutputCard(bOutputContent, '1. Corneal Plane Conversion', `
+                    <p><strong>Input RX</strong>: ${fmt4Sig(v.sSph)} / ${fmt4Sig(v.sCyl)} x ${v.sAx}°</p>
+                    <p><strong>BVD</strong>: ${v.bvd}mm (${bvdM}m)</p>
+                    <p><strong>Flat Meridian</strong>: ${fmt4Sig(v.sSph)}D → ${fmt4Sig(cornealFlat)}D</p>
+                    <p><strong>Steep Meridian</strong>: ${fmt4Sig(steepPower)}D → ${fmt4Sig(cornealSteep)}D</p>
+                    <p><strong>Corneal Cylinder</strong>: ${cornealCyl}D</p>
+                `);
+                addOutputCard(bOutputContent, '2. Corneal K Analysis', `
+                    <p><strong>K Flat</strong>: ${fmt4Sig(v.kfD)}D = ${kDToMm(v.kfD)}mm @ ${v.kfAx}°</p>
+                    <p><strong>K Steep</strong>: ${fmt4Sig(v.ksD)}D = ${kDToMm(v.ksD)}mm @ ${v.ksAx}°</p>
+                    <p><strong>ΔK</strong>: ${deltaK}D</p>
+                `);
+                addOutputCard(bOutputContent, '3. Base Curve (Adjusted)', `
+                    <p><strong>Flat Meridian</strong>:
+                        <br>Pre-Adjust: ${bcfD}D = ${bcfMm}mm
+                        <br>Adjust: ${v.bcfAdjust >0 ? '+' : ''}${v.bcfAdjust}mm
+                        <br>Final: <span class="font-bold text-clinical-navy">${fmt4Sig(bcfAdjD)}D = ${bcfAdjMm}mm</span> @ ${v.kfAx}°
+                    </p>
+                    <p><strong>Steep Meridian</strong>:
+                        <br>Pre-Adjust: ${bcsD}D = ${bcsMm}mm
+                        <br>Adjust: ${v.bcsAdjust >0 ? '+' : ''}${v.bcsAdjust}mm
+                        <br>Final: <span class="font-bold text-clinical-navy">${fmt4Sig(bcsAdjD)}D = ${bcsAdjMm}mm</span> @ ${v.ksAx}°
+                    </p>
+                `);
+                addOutputCard(bOutputContent, '4. Tear Lens Power', `
+                    <p><strong>Flat</strong>: ${tearFlat}D (${fmt4Sig(bcfAdjD)}D - ${fmt4Sig(v.kfD)}D)</p>
+                    <p><strong>Steep</strong>: ${tearSteep}D (${fmt4Sig(bcsAdjD)}D - ${fmt4Sig(v.ksD)}D)</p>
+                `);
+                addOutputCard(bOutputContent, `5. Lens Power`, `
+                    ${v.bcfAdjust!==0 || v.bcsAdjust!==0 ? `<p><strong>BC Power Adjust</strong>: Flat ${bcfPowerAdj >0 ? '+' : ''}${bcfPowerAdj}D | Steep ${bcsPowerAdj >0 ? '+' : ''}${bcsPowerAdj}D</p>` : ''}
+                    ${orApplied ? `
+                    <p><strong>Over-Refraction (Converted)</strong></p>
+                    <p>OR Input: ${fmt4Sig(v.orSph)} / ${fmt4Sig(v.orCyl)} x ${v.orAx}°</p>
+                    <p>Flat OR: ${fmt4Sig(orFlatConvDisp)}D | Steep OR: ${fmt4Sig(orSteepConvDisp)}D</p>
+                    ` : ''}
+                    <p><strong>Flat Power</strong>: <span class="font-bold text-clinical-navy text-lg">${ffFinal}D</span> @ ${v.kfAx}°</p>
+                    <p><strong>Steep Power</strong>: <span class="font-bold text-clinical-navy text-lg">${fsFinal}D</span> @ ${v.ksAx}°</p>
+                `);
+                bOutputPanel.classList.remove('hidden'); bOutputPanel.scrollIntoView({ behavior: 'smooth' });
+            } catch (error) {
+                addOutputCard(bOutputContent, 'Calculation Error', `
+                    <p class="text-clinical-red">Check input values are within valid ranges.</p>
+                    <p class="text-xs mt-2">${error.message}</p>
+                `, 'border-l-4 border-clinical-red');
+                bOutputPanel.classList.remove('hidden');
+            }
+        }
+
+        const lCalcBtn = document.getElementById('l-calculate-btn');
+        const lResetBtn = document.getElementById('l-reset-btn');
+        const lOrToggle = document.getElementById('l-or-toggle');
+        const lOrContent = document.getElementById('l-or-content');
+        const lOrChevron = document.getElementById('l-or-chevron');
+        const lOutputPanel = document.getElementById('l-output-panel');
+        const lOutputContent = document.getElementById('l-output-content');
+        const lInputs = {
+            kfD: document.getElementById('l-kf-d'), kfAx: document.getElementById('l-kf-ax'),
+            ksD: document.getElementById('l-ks-d'), ksAx: document.getElementById('l-ks-ax'),
+            sSph: document.getElementById('l-s-sph'), sCyl: document.getElementById('l-s-cyl'), sAx: document.getElementById('l-s-ax'),
+            bvd: document.getElementById('l-bvd'), toricityFactor: document.getElementById('l-toricity-factor'),
+            orSph: document.getElementById('l-or-sph'), orCyl: document.getElementById('l-or-cyl'), orAx: document.getElementById('l-or-ax'),
+            bcfAdjust: document.getElementById('l-bcf-adjust'), bcsAdjust: document.getElementById('l-bcs-adjust')
+        };
+        lCalcBtn.disabled = true;
+        lOrToggle.addEventListener('click', () => {
+            lOrContent.classList.toggle('open'); lOrChevron.classList.toggle('rotate-180');
+        });
+        Object.values(lInputs).forEach(input => {
+            input.addEventListener('input', () => validateLowToricInputs());
+            input.addEventListener('change', () => validateLowToricInputs());
+        });
+        lResetBtn.addEventListener('click', resetLowToric);
+        lCalcBtn.addEventListener('click', calculateLowToric);
+        function validateLowToricInputs() {
+            let allValid = true;
+            const required = [lInputs.kfD, lInputs.kfAx, lInputs.ksD, lInputs.ksAx, lInputs.sSph, lInputs.sCyl, lInputs.sAx, lInputs.bvd, lInputs.toricityFactor];
+            required.forEach(input => {
+                const val = parseFloat(input.value);
+                input.classList.remove('input-valid', 'input-invalid');
+                if (!input.value || isNaN(val)) { allValid = false; input.classList.add('input-invalid'); }
+                else {
+                    let rangeValid = true;
+                    if ((input.id === 'l-kf-d' || input.id === 'l-ks-d') && (val < 33 || val > 63)) rangeValid = false;
+                    else if (input.id === 'l-bvd' && (val < 5 || val > 20)) rangeValid = false;
+                    else if (input.id === 'l-toricity-factor' && (val < 65 || val > 90)) rangeValid = false;
+                    else if ((input.id === 'l-kf-ax' || input.id === 'l-ks-ax' || input.id === 'l-s-ax') && (val < 0 || val > 180)) rangeValid = false;
+                    else if (input.id === 'l-s-sph' && (val < -25 || val > 25)) rangeValid = false;
+                    else if (input.id === 'l-s-cyl' && (val < -25 || val > 0)) rangeValid = false;
+                    if (!rangeValid) { input.classList.add('input-invalid'); allValid = false; } else input.classList.add('input-valid');
+                }
+            });
+            if (lInputs.kfD.value && lInputs.ksD.value) {
+                const kf = parseFloat(lInputs.kfD.value); const ks = parseFloat(lInputs.ksD.value);
+                if (ks <= kf) { lInputs.ksD.classList.add('input-invalid'); allValid = false; }
+            }
+            [lInputs.bcfAdjust, lInputs.bcsAdjust].forEach(input => {
+                input.classList.remove('input-valid', 'input-invalid');
+                if (input.value) {
+                    const val = parseFloat(input.value);
+                    const stepValid = Math.round(val * 100) % 5 === 0;
+                    const rangeValid = val >= -2 && val <= 2;
+                    if (!rangeValid || !stepValid) { input.classList.add('input-invalid'); allValid = false; } else { input.classList.add('input-valid'); }
+                } else input.classList.add('input-valid');
+            });
+            [lInputs.orSph, lInputs.orCyl].forEach(input => {
+                input.classList.remove('input-valid', 'input-invalid');
+                if (input.value) {
+                    const val = parseFloat(input.value);
+                    const stepValid = Math.round(val * 100) % 25 === 0;
+                    let rangeValid = true;
+                    if (input.id === 'l-or-sph') rangeValid = val >= -25 && val <= 25;
+                    if (input.id === 'l-or-cyl') rangeValid = val >= -25 && val <= 0;
+                    if (!rangeValid || !stepValid) { input.classList.add('input-invalid'); allValid = false; } else { input.classList.add('input-valid'); }
+                } else input.classList.add('input-valid');
+            });
+            lInputs.orAx.classList.remove('input-valid', 'input-invalid');
+            const orAxVal = parseInt(lInputs.orAx.value || 0);
+            if (orAxVal < 0 || orAxVal > 180) { lInputs.orAx.classList.add('input-invalid'); allValid = false; } else { lInputs.orAx.classList.add('input-valid'); }
+            lCalcBtn.disabled = !allValid;
+        }
+        function resetLowToric() {
+            lInputs.kfD.value = lInputs.kfAx.value = lInputs.ksD.value = lInputs.ksAx.value = lInputs.sSph.value = lInputs.sCyl.value = lInputs.sAx.value = '';
+            lInputs.bvd.value = '12.000'; lInputs.toricityFactor.value = '75';
+            lInputs.orSph.value = lInputs.orCyl.value = '0.00'; lInputs.orAx.value = '0';
+            lInputs.bcfAdjust.value = lInputs.bcsAdjust.value = '0.00';
+            Object.values(lInputs).forEach(input => input.classList.remove('input-valid', 'input-invalid'));
+            lOutputPanel.classList.add('hidden'); lOutputContent.innerHTML = '';
+            lOrContent.classList.remove('open'); lOrChevron.classList.remove('rotate-180'); lCalcBtn.disabled = true;
+        }
+        function calculateLowToric() {
+            lOutputContent.innerHTML = '';
+            try {
+                const kfD = parseFloat(lInputs.kfD.value);
+                const kfAx = parseInt(lInputs.kfAx.value);
+                const ksD = parseFloat(lInputs.ksD.value);
+                const ksAx = parseInt(lInputs.ksAx.value);
+                const sSph = parseFloat(lInputs.sSph.value);
+                const sCyl = parseFloat(lInputs.sCyl.value);
+                const sAx = parseInt(lInputs.sAx.value);
+                const bvd = parseFloat(lInputs.bvd.value);
+                const toricityFactor = parseFloat(lInputs.toricityFactor.value) / 100;
+                const bcfAdjust = parseFloat(lInputs.bcfAdjust.value) || 0;
+                const bcsAdjust = parseFloat(lInputs.bcsAdjust.value) || 0;
+                const orSph = parseFloat(lInputs.orSph.value) || 0;
+                const orCyl = parseFloat(lInputs.orCyl.value) || 0;
+                const orAx = parseInt(lInputs.orAx.value) || 0;
+                const bvdM = bvd / 1000;
+                const flatSpectRx = sSph;
+                const steepSpectRx = sSph + sCyl;
+                const flatCornealRx = backVertexConversion(flatSpectRx, bvdM);
+                const steepCornealRx = backVertexConversion(steepSpectRx, bvdM);
+                const cornealCyl = fmt4Sig(steepCornealRx - flatCornealRx);
+                const kfMm = kDToMm(kfD);
+                const ksMm = kDToMm(ksD);
+                const deltaK = fmt4Sig(ksD - kfD);
+                const flatBCPreD = kfD;
+                const flatBCPreMm = kfMm;
+                const steepBCPreD = fmt4Sig(kfD + (toricityFactor * parseFloat(deltaK)));
+                const steepBCPreMm = kDToMm(parseFloat(steepBCPreD));
+                const flatBCAdjMm = parseFloat((flatBCPreMm + bcfAdjust).toFixed(6));
+                const steepBCAdjMm = parseFloat((steepBCPreMm + bcsAdjust).toFixed(6));
+                const flatBCAdjD = flatBCAdjMm !== 0 ? mmToKD(flatBCAdjMm) : flatBCPreD;
+                const steepBCAdjD = steepBCAdjMm !== 0 ? mmToKD(steepBCAdjMm) : steepBCPreD;
+                const flatBCAdjMmFinal = kDToMm(parseFloat(flatBCAdjD));
+                const steepBCAdjMmFinal = kDToMm(parseFloat(steepBCAdjD));
+                const tearLensFlatAdj = fmt4Sig(parseFloat(flatBCAdjD) - kfD);
+                const tearLensSteepAdj = fmt4Sig(parseFloat(steepBCAdjD) - ksD);
+                const bcPowerFlat = fmt4Sig((bcfAdjust / 0.05) * 0.25);
+                const bcPowerSteep = fmt4Sig((bcsAdjust / 0.05) * 0.25);
+                let orFlatSpect = 0, orSteepSpect = 0;
+                const normKfAx = normalizeAxis(kfAx);
+                const normKsAx = normalizeAxis(ksAx);
+                const normOrAx = normalizeAxis(orAx);
+                const diffFlat = calcAxisDiff(normOrAx, normKfAx);
+                const diffSteep = calcAxisDiff(normOrAx, normKsAx);
+                if (diffFlat <= 20) { orFlatSpect = orSph; orSteepSpect = orSph + orCyl; }
+                else if (diffSteep <= 20) { orFlatSpect = orSph + orCyl; orSteepSpect = orSph; }
+                else { orFlatSpect = orSph + (orCyl / 2); orSteepSpect = orSph + (orCyl / 2); }
+                const orFlatCorneal = backVertexConversion(orFlatSpect, bvdM);
+                const orSteepCorneal = backVertexConversion(orSteepSpect, bvdM);
+                const rgpFlat = fmt4Sig((flatCornealRx - (parseFloat(flatBCAdjD) - kfD)) + parseFloat(bcPowerFlat) + orFlatCorneal);
+                const rgpSteep = fmt4Sig((steepCornealRx - (parseFloat(steepBCAdjD) - ksD)) + parseFloat(bcPowerSteep) + orSteepCorneal);
+                const getAdjustment = (value) => {
+                    const sign = value >= 0 ? '+' : '';
+                    const val = fmt4Sig(value);
+                    if (value > 0) return `<span class="text-clinical-green font-medium">${sign}${val}mm</span>`;
+                    if (value < 0) return `<span class="text-clinical-red font-medium">${sign}${val}mm</span>`;
+                    return `${sign}${val}mm`;
+                };
+                addOutputCard(lOutputContent, '1. Corneal Plane Conversion', `
+                    <p><strong>Input RX:</strong> ${fmt4Sig(sSph)} / ${fmt4Sig(sCyl)} x ${sAx}°</p>
+                    <p><strong>Flat Meridian:</strong> ${fmt4Sig(flatSpectRx)}D → ${fmt4Sig(flatCornealRx)}D</p>
+                    <p><strong>Steep Meridian:</strong> ${fmt4Sig(steepSpectRx)}D → ${fmt4Sig(steepCornealRx)}D</p>
+                    <p><strong>Corneal Cylinder:</strong> ${cornealCyl}D</p>
+                `);
+                addOutputCard(lOutputContent, '2. K Value Analysis', `
+                    <p><strong>K Flat:</strong> ${fmt4Sig(kfD)}D = ${fmt4Sig(kfMm)}mm @ ${kfAx}°</p>
+                    <p><strong>K Steep:</strong> ${fmt4Sig(ksD)}D = ${fmt4Sig(ksMm)}mm @ ${ksAx}°</p>
+                    <p><strong>ΔK:</strong> ${deltaK}D</p>
+                    <p><strong>Toricity Factor:</strong> ${toricityFactor * 100}%</p>
+                `);
+                addOutputCard(lOutputContent, '3. Base Curve (Adjusted)', `
+                    <p><strong>Flat Meridian</strong>:
+                        <br>Pre-Adjust: ${fmt4Sig(flatBCPreD)}D = ${fmt4Sig(flatBCPreMm)}mm
+                        <br>Adjust: ${bcfAdjust > 0 ? '+' : ''}${fmt4Sig(bcfAdjust)}mm
+                        <br>Final: <span class="font-bold text-clinical-navy">${fmt4Sig(flatBCAdjD)}D = ${fmt4Sig(flatBCAdjMmFinal)}mm</span> @ ${kfAx}°
+                    </p>
+                    <p><strong>Steep Meridian</strong>:
+                        <br>Pre-Adjust: ${fmt4Sig(steepBCPreD)}D = ${fmt4Sig(steepBCPreMm)}mm
+                        <br>Adjust: ${bcsAdjust > 0 ? '+' : ''}${fmt4Sig(bcsAdjust)}mm
+                        <br>Final: <span class="font-bold text-clinical-navy">${fmt4Sig(steepBCAdjD)}D = ${fmt4Sig(steepBCAdjMmFinal)}mm</span> @ ${ksAx}°
+                    </p>
+                `);
+                addOutputCard(lOutputContent, '4. Tear Lens Power', `
+                    <p><strong>Flat</strong>: ${tearLensFlatAdj}D (${fmt4Sig(flatBCAdjD)}D - ${fmt4Sig(kfD)}D)</p>
+                    <p><strong>Steep</strong>: ${tearLensSteepAdj}D (${fmt4Sig(steepBCAdjD)}D - ${fmt4Sig(ksD)}D)</p>
+                `);
+                addOutputCard(lOutputContent, '5. Final RGP Power', `
+                    ${bcfAdjust!==0 || bcsAdjust!==0 ? `<p><strong>BC Power Adjust</strong>: Flat ${bcPowerFlat >0 ? '+' : ''}${bcPowerFlat}D | Steep ${bcPowerSteep >0 ? '+' : ''}${bcPowerSteep}D</p>` : ''}
+                    ${(orSph!==0 || orCyl!==0) ? `
+                    <p><strong>Over-Refraction (Converted)</strong></p>
+                    <p>OR Input: ${fmt4Sig(orSph)} / ${fmt4Sig(orCyl)} x ${orAx}°</p>
+                    <p>Flat OR: ${fmt4Sig(orFlatCorneal)}D | Steep OR: ${fmt4Sig(orSteepCorneal)}D</p>
+                    ` : ''}
+                    <p><strong>Flat Meridian (@${kfAx}°):</strong> <span class="value-highlight text-clinical-navy">${rgpFlat}D</span></p>
+                    <p><strong>Steep Meridian (@${ksAx}°):</strong> <span class="value-highlight text-clinical-navy">${rgpSteep}D</span></p>
+                `, 'border-l-4 border-clinical-green');
+                lOutputPanel.classList.remove('hidden'); lOutputPanel.scrollIntoView({ behavior: 'smooth' });
+            } catch (error) {
+                addOutputCard(lOutputContent, 'Calculation Error', `
+                    <p class="text-clinical-red">Check input values are within valid ranges.</p>
+                    <p class="text-xs mt-2">${error.message}</p>
+                `, 'border-l-4 border-clinical-red');
+                lOutputPanel.classList.remove('hidden');
+            }
+        }
+
+        const rgpElements = {
+            calculateBtn: document.getElementById('calculate-btn-rgp'),
+            resetBtn: document.getElementById('reset-btn-rgp'),
+            orToggle: document.getElementById('or-toggle'),
+            orContent: document.getElementById('or-content'),
+            orChevron: document.getElementById('or-chevron'),
+            outputPanel: document.getElementById('output-panel-rgp'),
+            outputContent: document.getElementById('output-content-rgp'),
+            kValueError: document.getElementById('k-value-error'),
+            inputs: {
+                kFlatD: document.getElementById('k-flat-d'),
+                kFlatAx: document.getElementById('k-flat-ax'),
+                kSteepD: document.getElementById('k-steep-d'),
+                kSteepAx: document.getElementById('k-steep-ax'),
+                spectSph: document.getElementById('spect-sph-rgp'),
+                spectCyl: document.getElementById('spect-cyl-rgp'),
+                spectAx: document.getElementById('spect-ax-rgp'),
+                bvd: document.getElementById('bvd-rgp'),
+                trialBcFlatMm: document.getElementById('trial-bc-flat-mm'),
+                trialBcFlatAx: document.getElementById('trial-bc-flat-ax'),
+                trialFlatPower: document.getElementById('trial-flat-power'),
+                trialBcSteepMm: document.getElementById('trial-bc-steep-mm'),
+                trialBcSteepAx: document.getElementById('trial-bc-steep-ax'),
+                trialSteepPower: document.getElementById('trial-steep-power'),
+                bcfAdjust: document.getElementById('bcf-adjust'),
+                bcsAdjust: document.getElementById('bcs-adjust'),
+                orSph: document.getElementById('or-sph'),
+                orCyl: document.getElementById('or-cyl'),
+                orAx: document.getElementById('or-ax')
+            }
+        };
+        rgpElements.calculateBtn.disabled = true;
+        rgpElements.orToggle.addEventListener('click', () => {
+            rgpElements.orContent.classList.toggle('open');
+            rgpElements.orChevron.classList.toggle('rotate-180');
+        });
+        Object.values(rgpElements.inputs).forEach(input => input.addEventListener('input', validateRgpInputs));
+        rgpElements.resetBtn.addEventListener('click', resetRgp);
+        rgpElements.calculateBtn.addEventListener('click', calculateRGP);
+        function validateRgpInputs() {
+            let allValid = true;
+            rgpElements.kValueError.classList.add('hidden');
+            const inputs = rgpElements.inputs;
+            const requiredInputs = [
+                inputs.kFlatD, inputs.kFlatAx, inputs.kSteepD, inputs.kSteepAx,
+                inputs.spectSph, inputs.spectCyl, inputs.spectAx, inputs.bvd,
+                inputs.trialBcFlatMm, inputs.trialBcFlatAx, inputs.trialFlatPower,
+                inputs.trialBcSteepMm, inputs.trialBcSteepAx, inputs.trialSteepPower
+            ];
+            requiredInputs.forEach(input => {
+                input.classList.remove('input-valid', 'input-invalid');
+                if (!input.value || isNaN(input.value) || input.value.trim() === '') {
+                    input.classList.add('input-invalid'); allValid = false; return;
+                }
+                const val = parseFloat(input.value);
+                let rangeValid = true;
+                switch(input.id) {
+                    case 'k-flat-d': case 'k-steep-d': rangeValid = val >=33 && val <=63; break;
+                    case 'k-flat-ax': case 'k-steep-ax': case 'spect-ax-rgp': case 'trial-bc-flat-ax': case 'trial-bc-steep-ax': case 'or-ax': rangeValid = val >=0 && val <=180; break;
+                    case 'spect-sph-rgp': case 'trial-flat-power': case 'trial-steep-power': case 'or-sph': rangeValid = val >=-25 && val <=25; break;
+                    case 'spect-cyl-rgp': case 'or-cyl': rangeValid = val >=-25 && val <=0; break;
+                    case 'bvd-rgp': rangeValid = val >=5 && val <=20; break;
+                    case 'trial-bc-flat-mm': case 'trial-bc-steep-mm': rangeValid = val >=5.3 && val <=10.2; break;
+                }
+                !rangeValid ? input.classList.add('input-invalid') : input.classList.add('input-valid');
+                if (!rangeValid) allValid = false;
+            });
+            if (inputs.kFlatD.value && inputs.kSteepD.value) {
+                const kFlat = parseFloat(inputs.kFlatD.value);
+                const kSteep = parseFloat(inputs.kSteepD.value);
+                if (kSteep < kFlat) {
+                    inputs.kFlatD.classList.add('input-invalid');
+                    inputs.kSteepD.classList.add('input-invalid');
+                    rgpElements.kValueError.classList.remove('hidden');
+                    allValid = false;
+                }
+            }
+            [inputs.bcfAdjust, inputs.bcsAdjust].forEach(input => {
+                input.classList.remove('input-valid', 'input-invalid');
+                const val = parseFloat(input.value) || 0;
+                const stepValid = Math.round(val * 100) % 5 === 0;
+                const rangeValid = val >= -2 && val <= 2;
+                if (!rangeValid || !stepValid) {
+                    input.classList.add('input-invalid');
+                    allValid = false;
+                } else {
+                    input.classList.add('input-valid');
+                    input.value = val.toFixed(2);
+                }
+            });
+            [inputs.orSph, inputs.orCyl].forEach(input => {
+                input.classList.remove('input-valid', 'input-invalid');
+                const val = parseFloat(input.value) || 0;
+                const stepValid = (val % 0.25).toFixed(2) === '0.00';
+                const rangeValid = (input.id === 'or-cyl') ? (val >=-25 && val <=0) : (val >=-25 && val <=25);
+                if (!rangeValid || !stepValid) {
+                    input.classList.add('input-invalid');
+                    allValid = false;
+                } else {
+                    input.classList.add('input-valid');
+                    input.value = val.toFixed(2);
+                }
+            });
+            const orAxVal = parseInt(inputs.orAx.value) || 0;
+            inputs.orAx.classList.remove('input-valid', 'input-invalid');
+            if (orAxVal >=0 && orAxVal <=180) {
+                inputs.orAx.classList.add('input-valid');
+                inputs.orAx.value = orAxVal;
+            } else {
+                inputs.orAx.classList.add('input-invalid');
+                allValid = false;
+            }
+            if (inputs.trialBcFlatMm.value && inputs.trialBcSteepMm.value) {
+                const bcFlat = parseFloat(inputs.trialBcFlatMm.value);
+                const bcSteep = parseFloat(inputs.trialBcSteepMm.value);
+                if (bcSteep > bcFlat) {
+                    inputs.trialBcSteepMm.classList.add('input-invalid');
+                    allValid = false;
+                }
+            }
+            rgpElements.calculateBtn.disabled = !allValid;
+        }
+        function resetRgp() {
+            Object.values(rgpElements.inputs).forEach(input => {
+                input.value = '';
+                input.classList.remove('input-valid', 'input-invalid');
+                if (input.id === 'bvd-rgp') input.value = 12.000;
+                if (input.id === 'or-sph' || input.id === 'or-cyl') input.value = 0.00;
+                if (input.id === 'or-ax') input.value = 0;
+                if (input.id.includes('adjust')) input.value = 0.00;
+            });
+            rgpElements.kValueError.classList.add('hidden');
+            rgpElements.outputPanel.classList.add('hidden');
+            rgpElements.outputContent.innerHTML = '';
+            rgpElements.calculateBtn.disabled = true;
+            rgpElements.orContent.classList.remove('open');
+            rgpElements.orChevron.classList.remove('rotate-180');
+        }
+        function calculateRGP() {
+            rgpElements.outputContent.innerHTML = '';
+            const inputs = rgpElements.inputs;
+            const vals = {
+                kFlatD: parseFloat(inputs.kFlatD.value),
+                kFlatAx: parseInt(inputs.kFlatAx.value),
+                kSteepD: parseFloat(inputs.kSteepD.value),
+                kSteepAx: parseInt(inputs.kSteepAx.value),
+                spectSph: parseFloat(inputs.spectSph.value),
+                spectCyl: parseFloat(inputs.spectCyl.value),
+                spectAx: parseInt(inputs.spectAx.value),
+                bvd: parseFloat(inputs.bvd.value),
+                trialBcFlatMm: parseFloat(inputs.trialBcFlatMm.value),
+                trialBcFlatAx: parseInt(inputs.trialBcFlatAx.value),
+                trialFlatPower: parseFloat(inputs.trialFlatPower.value),
+                trialBcSteepMm: parseFloat(inputs.trialBcSteepMm.value),
+                trialBcSteepAx: parseInt(inputs.trialBcSteepAx.value),
+                trialSteepPower: parseFloat(inputs.trialSteepPower.value),
+                bcfAdjust: parseFloat(inputs.bcfAdjust.value) || 0,
+                bcsAdjust: parseFloat(inputs.bcsAdjust.value) || 0,
+                orSph: parseFloat(inputs.orSph.value) || 0,
+                orCyl: parseFloat(inputs.orCyl.value) || 0,
+                orAx: parseInt(inputs.orAx.value) || 0
+            };
+            const bvdM = vals.bvd / 1000;
+            const trialBcFlatD = mmToD(vals.trialBcFlatMm);
+            const trialBcSteepD = mmToD(vals.trialBcSteepMm);
+            const adjBcFlatMm = format4SigFigs(vals.trialBcFlatMm + vals.bcfAdjust);
+            const adjBcSteepMm = format4SigFigs(vals.trialBcSteepMm + vals.bcsAdjust);
+            const adjBcFlatD = mmToD(adjBcFlatMm);
+            const adjBcSteepD = mmToD(adjBcSteepMm);
+            const tearLensFlatD = format4SigFigs(adjBcFlatD - vals.kFlatD);
+            const tearLensSteepD = format4SigFigs(adjBcSteepD - vals.kSteepD);
+            const spectAxisDiffFlat = calcAxisDiff(vals.spectAx, vals.kFlatAx);
+            const spectAxisDiffSteep = calcAxisDiff(vals.spectAx, vals.kSteepAx);
+            let spectFlatRx = 0, spectSteepRx = 0;
+            if (spectAxisDiffFlat <= 20) { spectFlatRx = vals.spectSph; spectSteepRx = vals.spectSph + vals.spectCyl; }
+            else if (spectAxisDiffSteep <= 20) { spectSteepRx = vals.spectSph; spectFlatRx = vals.spectSph + vals.spectCyl; }
+            else { spectFlatRx = vals.spectSph; spectSteepRx = vals.spectSph + vals.spectCyl; }
+            const ocularFlatD = backVertexConversion(spectFlatRx, bvdM);
+            const ocularSteepD = backVertexConversion(spectSteepRx, bvdM);
+            const orApplied = vals.orSph !== 0 || vals.orCyl !== 0;
+            let orFlatConverted = 0, orSteepConverted = 0;
+            if (orApplied) {
+                const orAxisDiffFlat = calcAxisDiff(vals.orAx, vals.kFlatAx);
+                const orAxisDiffSteep = calcAxisDiff(vals.orAx, vals.kSteepAx);
+                let orFlatSpectacle = 0, orSteepSpectacle = 0;
+                if (orAxisDiffFlat <= 20) { orFlatSpectacle = vals.orSph; orSteepSpectacle = vals.orSph + vals.orCyl; }
+                else if (orAxisDiffSteep <= 20) { orSteepSpectacle = vals.orSph; orFlatSpectacle = vals.orSph + vals.orCyl; }
+                else { orFlatSpectacle = vals.orSph; orSteepSpectacle = vals.orSph + vals.orCyl; }
+                orFlatConverted = backVertexConversion(orFlatSpectacle, bvdM);
+                orSteepConverted = backVertexConversion(orSteepSpectacle, bvdM);
+            }
+            const bcfPowerImpact = format4SigFigs((vals.bcfAdjust / 0.05) * 0.25);
+            const bcsPowerImpact = format4SigFigs((vals.bcsAdjust / 0.05) * 0.25);
+            const totalFlatPower = format4SigFigs(vals.trialFlatPower + tearLensFlatD + orFlatConverted + bcfPowerImpact);
+            const totalSteepPower = format4SigFigs(vals.trialSteepPower + tearLensSteepD + orSteepConverted + bcsPowerImpact);
+            const requiredFlatPower = format4SigFigs(ocularFlatD - totalFlatPower);
+            const requiredSteepPower = format4SigFigs(ocularSteepD - totalSteepPower);
+            const finalRgpFlatPower = format4SigFigs(vals.trialFlatPower + orFlatConverted + bcfPowerImpact);
+            const finalRgpSteepPower = format4SigFigs(vals.trialSteepPower + orSteepConverted + bcsPowerImpact);
+            addOutputCard(rgpElements.outputContent, '1. Adjusted BC & Tear Lens Power', `
+                <div class="space-y-3">
+                    <div>
+                        <p class="font-medium">Flat Meridian (@${vals.kFlatAx}°)</p>
+                        <p class="text-sm">Original BC: ${vals.trialBcFlatMm}mm (${trialBcFlatD}D)
+                            <br>Adjustment: <span class="${vals.bcfAdjust>0?'text-green-600':vals.bcfAdjust<0?'text-red-600':'text-gray-600'}">${vals.bcfAdjust}mm</span> (${bcfPowerImpact}D impact)
+                            <br>Adjusted BC: <span class="value-highlight text-clinical-navy">${adjBcFlatMm}mm (${adjBcFlatD}D)</span>
+                            <br>Tear Lens Power: <span class="value-highlight text-clinical-navy">${tearLensFlatD}D</span>
+                        </p>
+                    </div>
+                    <div>
+                        <p class="font-medium">Steep Meridian (@${vals.kSteepAx}°)</p>
+                        <p class="text-sm">Original BC: ${vals.trialBcSteepMm}mm (${trialBcSteepD}D)
+                            <br>Adjustment: <span class="${vals.bcsAdjust>0?'text-green-600':vals.bcsAdjust<0?'text-red-600':'text-gray-600'}">${vals.bcsAdjust}mm</span> (${bcsPowerImpact}D impact)
+                            <br>Adjusted BC: <span class="value-highlight text-clinical-navy">${adjBcSteepMm}mm (${adjBcSteepD}D)</span>
+                            <br>Tear Lens Power: <span class="value-highlight text-clinical-navy">${tearLensSteepD}D</span>
+                        </p>
+                    </div>
+                </div>
+            `);
+            addOutputCard(rgpElements.outputContent, '2. Corneal Plane (Ocular) Power', `
+                <div class="space-y-2">
+                    <p class="font-medium">Spectacle Prescription → Corneal Plane (BVD Conversion)</p>
+                    <p class="text-sm">Flat Meridian (@${vals.kFlatAx}°): Spectacle ${spectFlatRx}D → <span class="value-highlight text-clinical-navy">${ocularFlatD}D</span></p>
+                    <p class="text-sm">Steep Meridian (@${vals.kSteepAx}°): Spectacle ${spectSteepRx}D → <span class="value-highlight text-clinical-navy">${ocularSteepD}D</span></p>
+                    ${orApplied ? `
+                        <p class="mt-2 font-medium">Over-Refraction (Converted)</p>
+                        <p class="text-sm">OR Input: ${vals.orSph} / ${vals.orCyl} x ${vals.orAx}°
+                            <br>Flat OR: <span class="value-highlight text-clinical-navy">${orFlatConverted}D</span> | Steep OR: <span class="value-highlight text-clinical-navy">${orSteepConverted}D</span>
+                        </p>
+                    ` : ''}
+                </div>
+            `);
+            addOutputCard(rgpElements.outputContent, '3. Required Additional Power', `
+                <div class="space-y-3">
+                    <p class="text-sm">Calculation: Ocular Power - (Trial Lens + Tear Lens + OR + BC Adjustment)</p>
+                    <div class="bg-clinical-gray/30 p-3 rounded-lg">
+                        <p class="font-medium">Flat Meridian (@${vals.kFlatAx}°)</p>
+                        <p class="text-sm">${ocularFlatD}D - (${vals.trialFlatPower}D + ${tearLensFlatD}D ${orApplied ? `+ ${orFlatConverted}D` : ''} + ${bcfPowerImpact}D) = 
+                            <span class="value-highlight text-clinical-navy">${requiredFlatPower}D</span>
+                        </p>
+                    </div>
+                    <div class="bg-clinical-gray/30 p-3 rounded-lg">
+                        <p class="font-medium">Steep Meridian (@${vals.kSteepAx}°)</p>
+                        <p class="text-sm">${ocularSteepD}D - (${vals.trialSteepPower}D + ${tearLensSteepD}D ${orApplied ? `+ ${orSteepConverted}D` : ''} + ${bcsPowerImpact}D) = 
+                            <span class="value-highlight text-clinical-navy">${requiredSteepPower}D</span>
+                        </p>
+                    </div>
+                </div>
+            `, 'border-l-4 border-clinical-green');
+            addOutputCard(rgpElements.outputContent, '4. Final RGP Order', `
+                <div class="space-y-4">
+                    <div class="bg-clinical-gray/30 p-4 rounded-lg">
+                        <p class="font-medium text-clinical-lightNavy">Flat Meridian (@${vals.kFlatAx}°)</p>
+                        <p class="text-base"><span class="value-highlight text-clinical-navy">${finalRgpFlatPower}D</span></p>
+                        <p class="text-xs text-clinical-darkGray mt-1">${vals.trialFlatPower}D + ${orFlatConverted}D + ${bcfPowerImpact}D = ${finalRgpFlatPower}D</p>
+                    </div>
+                    <div class="bg-clinical-gray/30 p-4 rounded-lg">
+                        <p class="font-medium text-clinical-lightNavy">Steep Meridian (@${vals.kSteepAx}°)</p>
+                        <p class="text-base"><span class="value-highlight text-clinical-navy">${finalRgpSteepPower}D</span></p>
+                        <p class="text-xs text-clinical-darkGray mt-1">${vals.trialSteepPower}D + ${orSteepConverted}D + ${bcsPowerImpact}D = ${finalRgpSteepPower}D</p>
+                    </div>
+                </div>
+            `);
+            rgpElements.outputPanel.classList.remove('hidden');
+            rgpElements.outputPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        const bvdElements = {
+            calculateBtn: document.getElementById('calculate-btn-bvd'),
+            resetBtn: document.getElementById('reset-btn-bvd'),
+            outputPanel: document.getElementById('output-panel-bvd'),
+            outputContent: document.getElementById('output-content-bvd'),
+            inputs: {
+                spectSph: document.getElementById('spect-sph-bvd'),
+                spectCyl: document.getElementById('spect-cyl-bvd'),
+                spectAx: document.getElementById('spect-ax-bvd'),
+                bvd: document.getElementById('bvd-bvd')
+            }
+        };
+        bvdElements.calculateBtn.disabled = true;
+        Object.values(bvdElements.inputs).forEach(input => input.addEventListener('input', validateBvdInputs));
+        bvdElements.resetBtn.addEventListener('click', resetBvd);
+        bvdElements.calculateBtn.addEventListener('click', calculateBVD);
+        function validateBvdInputs() {
+            let allValid = true;
+            Object.values(bvdElements.inputs).forEach(input => {
+                input.classList.remove('input-valid', 'input-invalid');
+                if (!input.value || isNaN(input.value) || input.value.trim() === '') {
+                    input.classList.add('input-invalid'); allValid = false; return;
+                }
+                const val = parseFloat(input.value);
+                let rangeValid = true;
+                switch(input.id) {
+                    case 'spect-sph-bvd': rangeValid = val >=-30 && val <=30; break;
+                    case 'spect-cyl-bvd': rangeValid = val >=-30 && val <=0; break;
+                    case 'spect-ax-bvd': rangeValid = val >=0 && val <=180; break;
+                    case 'bvd-bvd': rangeValid = val >=5 && val <=20; break;
+                }
+                !rangeValid ? input.classList.add('input-invalid') : input.classList.add('input-valid');
+                if (!rangeValid) allValid = false;
+            });
+            bvdElements.calculateBtn.disabled = !allValid;
+        }
+        function resetBvd() {
+            bvdElements.inputs.spectSph.value = '';
+            bvdElements.inputs.spectCyl.value = '';
+            bvdElements.inputs.spectAx.value = '';
+            bvdElements.inputs.bvd.value = '12.000';
+            Object.values(bvdElements.inputs).forEach(input => input.classList.remove('input-valid', 'input-invalid'));
+            bvdElements.outputPanel.classList.add('hidden'); bvdElements.outputContent.innerHTML = '';
+            bvdElements.calculateBtn.disabled = true;
+        }
+        function calculateBVD() {
+            bvdElements.outputContent.innerHTML = '';
+            const inputs = bvdElements.inputs;
+            const vals = {
+                spectSph: parseFloat(inputs.spectSph.value),
+                spectCyl: parseFloat(inputs.spectCyl.value),
+                spectAx: parseInt(inputs.spectAx.value),
+                bvd: parseFloat(inputs.bvd.value)
+            };
+            const bvdM = vals.bvd / 1000;
+            const flatMeridianPower = format4SigFigs(vals.spectSph);
+            const steepMeridianPower = format4SigFigs(vals.spectSph + vals.spectCyl);
+            const steepMeridianAx = format4SigFigs((vals.spectAx + 90) % 180);
+            const cornealFlatPower = backVertexConversion(flatMeridianPower, bvdM);
+            const cornealSteepPower = backVertexConversion(steepMeridianPower, bvdM);
+            const cornealCyl = format4SigFigs(cornealSteepPower - cornealFlatPower);
+            const cornealSph = cornealFlatPower;
+            addOutputCard(bvdElements.outputContent, 'Input Summary', `
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <p class="font-medium text-gray-700">Spectacle Prescription:</p>
+                        <p class="text-lg font-bold text-clinical-navy">${vals.spectSph} / ${vals.spectCyl} x ${vals.spectAx}°</p>
+                    </div>
+                    <div>
+                        <p class="font-medium text-gray-700">Back Vertex Distance:</p>
+                        <p class="text-lg font-bold text-clinical-navy">${vals.bvd}mm (${bvdM}m)</p>
+                    </div>
+                </div>
+            `);
+            addOutputCard(bvdElements.outputContent, 'Meridian-by-Meridian Conversion', `
+                <table class="w-full border-collapse">
+                    <thead>
+                        <tr class="border-b border-gray-300">
+                            <th class="text-left py-2 px-1">Meridian</th>
+                            <th class="text-left py-2 px-1">Spectacle Power (D)</th>
+                            <th class="text-left py-2 px-1">Corneal Plane Power (D)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr class="border-b border-gray-200">
+                            <td class="py-2 px-1 font-medium">@ ${vals.spectAx}° (Sphere)</td>
+                            <td class="py-2 px-1">${flatMeridianPower}</td>
+                            <td class="py-2 px-1 font-bold text-clinical-lightNavy">${cornealFlatPower}</td>
+                        </tr>
+                        <tr>
+                            <td class="py-2 px-1 font-medium">@ ${steepMeridianAx}° (Sphere + Cylinder)</td>
+                            <td class="py-2 px-1">${steepMeridianPower}</td>
+                            <td class="py-2 px-1 font-bold text-clinical-lightNavy">${cornealSteepPower}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            `);
+            addOutputCard(bvdElements.outputContent, 'Final Corneal Plane Prescription', `
+                <div class="bg-clinical-green/10 p-4 rounded-lg text-center">
+                    <p class="font-medium text-gray-700 mb-2">Converted to Corneal Plane (4 Sig Figs)</p>
+                    <p class="text-2xl font-bold text-clinical-navy">${cornealSph} / ${cornealCyl} x ${vals.spectAx}°</p>
+                    <div class="mt-3 text-sm text-gray-600">
+                        <p>Calculation: ${cornealSph} / (${cornealSteepPower} - ${cornealFlatPower}) x ${vals.spectAx}°</p>
+                    </div>
+                </div>
+            `);
+            bvdElements.outputPanel.classList.remove('hidden');
+            bvdElements.outputPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    </script>
+</body>
+</html>
